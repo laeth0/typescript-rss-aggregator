@@ -2,6 +2,7 @@ import { readConfig, setUser } from "./config";
 import { fetchFeed } from "./rss";
 import {
   createFeedFollow,
+  deleteFeedFollow,
   getFeedFollowsForUser,
 } from "./lib/db/queries/feedFollows";
 import { createFeed, getFeedByUrl, getFeeds } from "./lib/db/queries/feeds";
@@ -205,6 +206,25 @@ export async function handlerFollowing(
   }
 }
 
+export async function handlerUnfollow(
+  cmdName: string,
+  user: User,
+  ...args: string[]
+): Promise<void> {
+  if (args.length < 1) {
+    throw new Error(`The ${cmdName} command requires a feed URL`);
+  }
+
+  const url = args[0];
+  const deletedFeedFollow = await deleteFeedFollow(user.id, url);
+
+  if (!deletedFeedFollow) {
+    throw new Error(`Feed follow for URL ${url} not found`);
+  }
+
+  console.log(`Unfollowed ${deletedFeedFollow.feedName}`);
+}
+
 async function main() {
   const registry: CommandsRegistry = {};
 
@@ -217,6 +237,7 @@ async function main() {
   registerCommand(registry, "feeds", handlerFeeds);
   registerCommand(registry, "follow", middlewareLoggedIn(handlerFollow));
   registerCommand(registry, "following", middlewareLoggedIn(handlerFollowing));
+  registerCommand(registry, "unfollow", middlewareLoggedIn(handlerUnfollow));
 
   const cliArgs = process.argv.slice(2);
 
