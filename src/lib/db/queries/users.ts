@@ -14,3 +14,7 @@ export async function getUser(name: string) {
 
   return result;
 }
+
+export async function deleteUsers(): Promise<void> {
+  await db.delete(users);
+}
