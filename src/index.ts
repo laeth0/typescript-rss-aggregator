@@ -1,4 +1,5 @@
 import { readConfig, setUser } from "./config";
+import { fetchFeed } from "./rss";
 import {
   createUser,
   deleteUsers,
@@ -95,6 +96,12 @@ export async function handlerUsers(): Promise<void> {
   }
 }
 
+export async function handlerAgg(): Promise<void> {
+  const feed = await fetchFeed("https://www.wagslane.dev/index.xml");
+
+  console.dir(feed, { depth: null });
+}
+
 async function main() {
   const registry: CommandsRegistry = {};
 
@@ -102,6 +109,7 @@ async function main() {
   registerCommand(registry, "register", handlerRegister);
   registerCommand(registry, "reset", handlerReset);
   registerCommand(registry, "users", handlerUsers);
+  registerCommand(registry, "agg", handlerAgg);
 
   const cliArgs = process.argv.slice(2);
 
