@@ -1,6 +1,6 @@
 import { readConfig, setUser } from "./config";
 import { fetchFeed } from "./rss";
-import { createFeed } from "./lib/db/queries/feeds";
+import { createFeed, getFeeds } from "./lib/db/queries/feeds";
 import {
   createUser,
   deleteUsers,
@@ -146,6 +146,14 @@ export async function handlerAddFeed(
   printFeed(feed, user);
 }
 
+export async function handlerFeeds(): Promise<void> {
+  const feeds = await getFeeds();
+
+  for (const row of feeds) {
+    printFeed(row.feeds, row.users);
+  }
+}
+
 async function main() {
   const registry: CommandsRegistry = {};
 
@@ -155,6 +163,7 @@ async function main() {
   registerCommand(registry, "users", handlerUsers);
   registerCommand(registry, "agg", handlerAgg);
   registerCommand(registry, "addfeed", handlerAddFeed);
+  registerCommand(registry, "feeds", handlerFeeds);
 
   const cliArgs = process.argv.slice(2);
 

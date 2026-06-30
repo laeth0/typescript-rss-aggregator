@@ -1,5 +1,7 @@
+import { eq } from "drizzle-orm";
+
 import { db } from "..";
-import { feeds } from "../schema";
+import { feeds, users } from "../schema";
 
 export async function createFeed(name: string, url: string, userId: string) {
   const [result] = await db
@@ -12,4 +14,11 @@ export async function createFeed(name: string, url: string, userId: string) {
     .returning();
 
   return result;
+}
+
+export async function getFeeds() {
+  return await db
+    .select()
+    .from(feeds)
+    .innerJoin(users, eq(feeds.userId, users.id));
 }
