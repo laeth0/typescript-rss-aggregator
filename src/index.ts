@@ -1,6 +1,10 @@
 import { readConfig, setUser } from "./config";
 import { fetchFeed } from "./rss";
-import { createFeed, getFeeds } from "./lib/db/queries/feeds";
+import {
+  createFeedFollow,
+  getFeedFollowsForUser,
+} from "./lib/db/queries/feedFollows";
+import { createFeed, getFeedByUrl, getFeeds } from "./lib/db/queries/feeds";
 import {
   createUser,
   deleteUsers,
@@ -59,6 +63,11 @@ export function printFeed(feed: Feed, user: User): void {
   console.log(`  Name: ${feed.name}`);
   console.log(`  URL: ${feed.url}`);
   console.log(`  User: ${user.name}`);
+}
+
+export function printFeedFollow(feedName: string, userName: string): void {
+  console.log(`Feed: ${feedName}`);
+  console.log(`User: ${userName}`);
 }
 
 export async function handlerLogin(
@@ -142,8 +151,10 @@ export async function handlerAddFeed(
   const user = await getCurrentUser();
 
   const feed = await createFeed(name, url, user.id);
+  const feedFollow = await createFeedFollow(user.id, feed.id);
 
   printFeed(feed, user);
+  printFeedFollow(feedFollow.feedName, feedFollow.userName);
 }
 
 export async function handlerFeeds(): Promise<void> {
@@ -151,6 +162,36 @@ export async function handlerFeeds(): Promise<void> {
 
   for (const row of feeds) {
     printFeed(row.feeds, row.users);
+  }
+}
+
+export async function handlerFollow(
+  cmdName: string,
+  ...args: string[]
+): Promise<void> {
+  if (args.length < 1) {
+    throw new Error(`The ${cmdName} command requires a feed URL`);
+  }
+
+  const url = args[0];
+  const user = await getCurrentUser();
+  const feed = await getFeedByUrl(url);
+
+  if (!feed) {
+    throw new Error(`Feed with URL ${url} does not exist`);
+  }
+
+  const feedFollow = await createFeedFollow(user.id, feed.id);
+
+  printFeedFollow(feedFollow.feedName, feedFollow.userName);
+}
+
+export async function handlerFollowing(): Promise<void> {
+  const user = await getCurrentUser();
+  const feedFollows = await getFeedFollowsForUser(user.id);
+
+  for (const feedFollow of feedFollows) {
+    console.log(feedFollow.feedName);
   }
 }
 
@@ -164,6 +205,8 @@ async function main() {
   registerCommand(registry, "agg", handlerAgg);
   registerCommand(registry, "addfeed", handlerAddFeed);
   registerCommand(registry, "feeds", handlerFeeds);
+  registerCommand(registry, "follow", handlerFollow);
+  registerCommand(registry, "following", handlerFollowing);
 
   const cliArgs = process.argv.slice(2);
 
