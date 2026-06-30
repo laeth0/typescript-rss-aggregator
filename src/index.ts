@@ -15,6 +15,12 @@ import type { Feed, User } from "./lib/db/schema";
 
 export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
+export type UserCommandHandler = (
+  cmdName: string,
+  user: User,
+  ...args: string[]
+) => Promise<void>;
+
 export type CommandsRegistry = Record<string, CommandHandler>;
 
 export function registerCommand(
@@ -39,20 +45,22 @@ export async function runCommand(
   await handler(cmdName, ...args);
 }
 
-async function getCurrentUser(): Promise<User> {
-  const cfg = readConfig();
+export function middlewareLoggedIn(handler: UserCommandHandler): CommandHandler {
+  return async function (cmdName: string, ...args: string[]): Promise<void> {
+    const cfg = readConfig();
 
-  if (!cfg.currentUserName) {
-    throw new Error("No current user is set. Please login or register first.");
-  }
+    if (!cfg.currentUserName) {
+      throw new Error("No current user is set. Please login or register first.");
+    }
 
-  const user = await getUser(cfg.currentUserName);
+    const user = await getUser(cfg.currentUserName);
 
-  if (!user) {
-    throw new Error(`Current user ${cfg.currentUserName} does not exist`);
-  }
+    if (!user) {
+      throw new Error(`User ${cfg.currentUserName} not found`);
+    }
 
-  return user;
+    await handler(cmdName, user, ...args);
+  };
 }
 
 export function printFeed(feed: Feed, user: User): void {
@@ -141,6 +149,7 @@ export async function handlerAgg(): Promise<void> {
 
 export async function handlerAddFeed(
   cmdName: string,
+  user: User,
   ...args: string[]
 ): Promise<void> {
   if (args.length < 2) {
@@ -148,7 +157,6 @@ export async function handlerAddFeed(
   }
 
   const [name, url] = args;
-  const user = await getCurrentUser();
 
   const feed = await createFeed(name, url, user.id);
   const feedFollow = await createFeedFollow(user.id, feed.id);
@@ -167,6 +175,7 @@ export async function handlerFeeds(): Promise<void> {
 
 export async function handlerFollow(
   cmdName: string,
+  user: User,
   ...args: string[]
 ): Promise<void> {
   if (args.length < 1) {
@@ -174,7 +183,6 @@ export async function handlerFollow(
   }
 
   const url = args[0];
-  const user = await getCurrentUser();
   const feed = await getFeedByUrl(url);
 
   if (!feed) {
@@ -186,8 +194,10 @@ export async function handlerFollow(
   printFeedFollow(feedFollow.feedName, feedFollow.userName);
 }
 
-export async function handlerFollowing(): Promise<void> {
-  const user = await getCurrentUser();
+export async function handlerFollowing(
+  _cmdName: string,
+  user: User,
+): Promise<void> {
   const feedFollows = await getFeedFollowsForUser(user.id);
 
   for (const feedFollow of feedFollows) {
@@ -203,10 +213,10 @@ async function main() {
   registerCommand(registry, "reset", handlerReset);
   registerCommand(registry, "users", handlerUsers);
   registerCommand(registry, "agg", handlerAgg);
-  registerCommand(registry, "addfeed", handlerAddFeed);
+  registerCommand(registry, "addfeed", middlewareLoggedIn(handlerAddFeed));
   registerCommand(registry, "feeds", handlerFeeds);
-  registerCommand(registry, "follow", handlerFollow);
-  registerCommand(registry, "following", handlerFollowing);
+  registerCommand(registry, "follow", middlewareLoggedIn(handlerFollow));
+  registerCommand(registry, "following", middlewareLoggedIn(handlerFollowing));
 
   const cliArgs = process.argv.slice(2);
 
