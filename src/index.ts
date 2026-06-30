@@ -1,5 +1,10 @@
-import { setUser } from "./config";
-import { createUser, deleteUsers, getUser } from "./lib/db/queries/users";
+import { readConfig, setUser } from "./config";
+import {
+  createUser,
+  deleteUsers,
+  getUser,
+  getUsers,
+} from "./lib/db/queries/users";
 
 export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
@@ -76,12 +81,27 @@ export async function handlerReset(): Promise<void> {
   console.log("Users table reset successfully");
 }
 
+export async function handlerUsers(): Promise<void> {
+  const cfg = readConfig();
+  const users = await getUsers();
+
+  for (const user of users) {
+    if (user.name === cfg.currentUserName) {
+      console.log(`* ${user.name} (current)`);
+      continue;
+    }
+
+    console.log(`* ${user.name}`);
+  }
+}
+
 async function main() {
   const registry: CommandsRegistry = {};
 
   registerCommand(registry, "login", handlerLogin);
   registerCommand(registry, "register", handlerRegister);
   registerCommand(registry, "reset", handlerReset);
+  registerCommand(registry, "users", handlerUsers);
 
   const cliArgs = process.argv.slice(2);
 
