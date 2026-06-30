@@ -1,11 +1,13 @@
 import { readConfig, setUser } from "./config";
 import { fetchFeed } from "./rss";
+import { createFeed } from "./lib/db/queries/feeds";
 import {
   createUser,
   deleteUsers,
   getUser,
   getUsers,
 } from "./lib/db/queries/users";
+import type { Feed, User } from "./lib/db/schema";
 
 export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
@@ -31,6 +33,32 @@ export async function runCommand(
   }
 
   await handler(cmdName, ...args);
+}
+
+async function getCurrentUser(): Promise<User> {
+  const cfg = readConfig();
+
+  if (!cfg.currentUserName) {
+    throw new Error("No current user is set. Please login or register first.");
+  }
+
+  const user = await getUser(cfg.currentUserName);
+
+  if (!user) {
+    throw new Error(`Current user ${cfg.currentUserName} does not exist`);
+  }
+
+  return user;
+}
+
+export function printFeed(feed: Feed, user: User): void {
+  console.log("Feed:");
+  console.log(`  ID: ${feed.id}`);
+  console.log(`  Created: ${feed.createdAt}`);
+  console.log(`  Updated: ${feed.updatedAt}`);
+  console.log(`  Name: ${feed.name}`);
+  console.log(`  URL: ${feed.url}`);
+  console.log(`  User: ${user.name}`);
 }
 
 export async function handlerLogin(
@@ -102,6 +130,22 @@ export async function handlerAgg(): Promise<void> {
   console.dir(feed, { depth: null });
 }
 
+export async function handlerAddFeed(
+  cmdName: string,
+  ...args: string[]
+): Promise<void> {
+  if (args.length < 2) {
+    throw new Error(`The ${cmdName} command requires a feed name and URL`);
+  }
+
+  const [name, url] = args;
+  const user = await getCurrentUser();
+
+  const feed = await createFeed(name, url, user.id);
+
+  printFeed(feed, user);
+}
+
 async function main() {
   const registry: CommandsRegistry = {};
 
@@ -110,6 +154,7 @@ async function main() {
   registerCommand(registry, "reset", handlerReset);
   registerCommand(registry, "users", handlerUsers);
   registerCommand(registry, "agg", handlerAgg);
+  registerCommand(registry, "addfeed", handlerAddFeed);
 
   const cliArgs = process.argv.slice(2);
 
