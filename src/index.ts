@@ -1,6 +1,7 @@
 import { setUser } from "./config";
+import { createUser, getUser } from "./lib/db/queries/users";
 
-export type CommandHandler = (cmdName: string, ...args: string[]) => void;
+export type CommandHandler = (cmdName: string, ...args: string[]) => Promise<void>;
 
 export type CommandsRegistry = Record<string, CommandHandler>;
 
@@ -12,36 +13,68 @@ export function registerCommand(
   registry[cmdName] = handler;
 }
 
-export function runCommand(
+export async function runCommand(
   registry: CommandsRegistry,
   cmdName: string,
   ...args: string[]
-): void {
+): Promise<void> {
   const handler = registry[cmdName];
 
   if (!handler) {
     throw new Error(`Unknown command: ${cmdName}`);
   }
 
-  handler(cmdName, ...args);
+  await handler(cmdName, ...args);
 }
 
-export function handlerLogin(cmdName: string, ...args: string[]): void {
+export async function handlerLogin(
+  cmdName: string,
+  ...args: string[]
+): Promise<void> {
   if (args.length === 0) {
     throw new Error(`The ${cmdName} command requires a username`);
   }
 
   const username = args[0];
+  const user = await getUser(username);
+
+  if (!user) {
+    throw new Error(`User ${username} does not exist`);
+  }
 
   setUser(username);
 
   console.log(`User set to ${username}`);
 }
 
-function main() {
+export async function handlerRegister(
+  cmdName: string,
+  ...args: string[]
+): Promise<void> {
+  if (args.length === 0) {
+    throw new Error(`The ${cmdName} command requires a username`);
+  }
+
+  const username = args[0];
+  const existingUser = await getUser(username);
+
+  if (existingUser) {
+    throw new Error(`User ${username} already exists`);
+  }
+
+  const user = await createUser(username);
+
+  setUser(username);
+
+  console.log(`User ${username} created`);
+  console.log(user);
+}
+
+async function main() {
   const registry: CommandsRegistry = {};
 
   registerCommand(registry, "login", handlerLogin);
+  registerCommand(registry, "register", handlerRegister);
 
   const cliArgs = process.argv.slice(2);
 
@@ -50,10 +83,12 @@ function main() {
     process.exit(1);
   }
 
-  const [cmdName, ...args] = cliArgs;
+  const cmdName = cliArgs[0];
+  const args = cliArgs.slice(1);
 
   try {
-    runCommand(registry, cmdName, ...args);
+    await runCommand(registry, cmdName, ...args);
+    process.exit(0);
   } catch (error) {
     if (error instanceof Error) {
       console.error(`Error: ${error.message}`);
